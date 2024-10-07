@@ -1,0 +1,185 @@
+import cv2
+import numpy as np
+
+class VideoProcessor:
+    def __init__(self):
+        # Mở camera
+        self.cap = cv2.VideoCapture(r'f:\train\line_hoàn_chỉnh.mp4')
+        if not self.cap.isOpened():
+            print("Không thể mở camera")
+            exit()
+
+    def process_frame(self, frame):
+        # Chuyển đổi khung hình thành ảnh xám
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return gray_frame
+
+    def get_frame_size(self, frame):
+        # Tính toán kích thước khung hình
+        height, width = frame.shape[:2]
+        return width, height  # Trả về (chiều rộng, chiều cao)
+
+    def draw_rectangle(self, frame, width=640, height=300):
+        # Vẽ đường viền khung hình chữ nhật
+        start_point = (0, 100)  # Tọa độ góc trên bên trái
+        end_point = (start_point[0] + width, start_point[1] + height)  # Tọa độ góc dưới bên phải
+        color = (0, 255, 0)  # Màu xanh lá
+        thickness = 2  # Độ dày đường viền
+
+        cv2.rectangle(frame, start_point, end_point, color, thickness)
+
+        # Vẽ trục tọa độ
+        self.draw_axes(frame, start_point, width, height)
+
+    def draw_axes(self, frame, start_point, width, height):
+        # Tọa độ của trục
+        origin_x = start_point[0] + width // 2  # Trục x giữa hình chữ nhật
+        origin_y = start_point[1] + height - 0  # Trục y cách đáy khung hình chữ nhật 100 pixel
+
+        # Vẽ trục x
+        cv2.line(frame, (0, origin_y), (frame.shape[1], origin_y), (255, 0, 0), 2)  # Màu đỏ
+        cv2.putText(frame, 'X', (frame.shape[1] - 20, origin_y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+        # Vẽ trục y
+        cv2.line(frame, (origin_x, 0), (origin_x, frame.shape[0]), (255, 0, 0), 2)  # Màu đỏ
+        cv2.putText(frame, 'Y', (origin_x + 5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+        # Vẽ điểm A tại gốc tọa độ
+        self.draw_point_A(frame, origin_x, origin_y)
+
+        # Tính toán tọa độ của điểm B (cách điểm A 300 pixel theo trục Y)
+        point_B_y = origin_y - 300  # Cách điểm A 300 pixel lên trên
+
+        # Vẽ điểm B
+        self.draw_point_B(frame, origin_x, point_B_y)
+
+        # Vẽ 10 điểm giữa A và B
+        self.draw_intermediate_points(frame, origin_x, origin_y, origin_x, point_B_y)
+
+    def draw_point_A(self, frame, x, y):
+        # Vẽ điểm A
+        radius = 5  # Bán kính của điểm
+        color = (0, 0, 255)  # Màu đỏ
+        thickness = -1  # Để vẽ hình tròn đầy
+
+        cv2.circle(frame, (x, y), radius, color, thickness)  # Vẽ hình tròn tại tọa độ (x, y)
+        cv2.putText(frame, 'A', (x + 10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)  # Nhãn A
+
+    def draw_point_B(self, frame, x, y):
+        # Vẽ điểm B
+        radius = 5  # Bán kính của điểm
+        color = (255, 0, 0)  # Màu xanh dương
+        thickness = -1  # Để vẽ hình tròn đầy
+
+        cv2.circle(frame, (x, y), radius, color, thickness)  # Vẽ hình tròn tại tọa độ (x, y)
+        cv2.putText(frame, 'B', (x + 10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)  # Nhãn B
+
+    def draw_intermediate_points(self, frame, x_A, y_A, x_B, y_B):
+        # Tính toán khoảng cách giữa các điểm
+        num_points = 10  # Chỉ hiển thị 10 điểm ảnh
+        interval = (y_A - y_B) / (num_points + 1)  # Khoảng cách giữa các điểm
+
+        for i in range(1, num_points + 1):
+            # Tính toán tọa độ y cho từng điểm
+            y_point = int(y_A - i * interval)
+            self.draw_point_intermediate(frame, x_A, y_point)
+
+    def draw_point_intermediate(self, frame, x, y):
+        # Vẽ điểm trung gian
+        radius = 3  # Bán kính của điểm trung gian
+        color = (0, 0, 255)  # Màu đỏ
+        thickness = -1  # Để vẽ hình tròn đầy
+
+        cv2.circle(frame, (x, y), radius, color, thickness)  # Vẽ hình tròn tại tọa độ (x, y)
+
+    def find_yellow(self, frame):
+        # Chuyển đổi khung hình sang không gian màu HSV
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Định nghĩa khoảng màu vàng trong không gian HSV
+        lower_yellow = np.array([20, 100, 100])
+        upper_yellow = np.array([30, 255, 255])
+
+        # Tạo mặt nạ cho màu vàng
+        mask = cv2.inRange(hsv_frame, lower_yellow, upper_yellow)
+
+        # Áp dụng mặt nạ vào khung hình gốc
+        yellow_objects = cv2.bitwise_and(frame, frame, mask=mask)
+
+        return yellow_objects
+    
+    def adjust_brightness(self, frame, brightness=50):
+    # """
+    # Điều chỉnh độ sáng của khung hình.
+    # :param frame: Khung hình gốc
+    # :param brightness: Độ sáng muốn tăng thêm, mặc định là 50
+    # :return: Khung hình với độ sáng được điều chỉnh
+    # """
+    # Chuyển đổi khung hình sang định dạng có thể xử lý với độ sáng
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    
+    # Tách các kênh màu HSV
+        h, s, v = cv2.split(hsv)
+    
+    # Thêm giá trị brightness vào kênh V (Value - độ sáng)
+        v = cv2.add(v, brightness)
+    
+    # Gộp lại các kênh màu
+        final_hsv = cv2.merge((h, s, v))
+    
+    # Chuyển lại về không gian màu BGR
+        bright_frame = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    
+        return bright_frame, hsv
+
+    def run(self):
+        while True:
+            # Đọc một khung hình từ camera
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Không thể đọc khung hình")
+                break
+
+            # Lấy kích thước khung hình
+            width, height = self.get_frame_size(frame)
+            print(f"Kích thước khung hình: {width}x{height} pixels")
+
+            # Vẽ đường viền khung hình chữ nhật
+            self.draw_rectangle(frame)
+
+            # Tìm các đối tượng màu vàng
+            yellow_objects = self.find_yellow(frame)
+
+            # Xử lý khung hình
+            gray_frame = self.process_frame(frame)
+            
+            # Tăng cường độ sáng cho khung hình
+            bright_frame, hsv = self.adjust_brightness(frame, brightness=50)
+
+            # Hiển thị khung hình gốc
+            cv2.imshow('Khung hình gốc', frame)
+
+            # Hiển thị khung hình ảnh xám
+            cv2.imshow('Khung hình xám', gray_frame)
+            
+            # Hiển thị khung hình màu vàng
+            cv2.imshow('Khung hình màu vàng', yellow_objects)
+
+            # Hiển thị khung hình đã cải thiện độ sáng
+            cv2.imshow('Khung hình cải thiện độ sáng', bright_frame)
+            cv2.imshow('hsv', hsv)
+
+            
+            # Thoát khi nhấn phím 'q'
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    def release(self):
+        # Giải phóng camera và đóng tất cả cửa sổ
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    video_processor = VideoProcessor()  # Tạo đối tượng VideoProcessor
+    video_processor.run()                # Bắt đầu xử lý video
+    video_processor.release()             # Giải phóng tài nguyên
