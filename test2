@@ -1,0 +1,306 @@
+import cv2
+import numpy as np
+class VideoProcessor:
+    def __init__(self):
+        # Mở camera
+        self.cap = cv2.VideoCapture(r'f:\train\2.mp4')
+        if not self.cap.isOpened():
+            print("Không thể mở camera")
+            exit()
+        self.line_points = []  # Danh sách lưu tọa độ các điểm trung gian
+
+    def process_frame(self, frame):
+        # Chuyển đổi khung hình thành ảnh xám
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return gray_frame
+    
+    def get_frame_size(self, frame):
+        # Tính toán kích thước khung hình
+        height, width = frame.shape[:2]
+        return width, height  # Trả về (chiều rộng, chiều cao)
+    
+    def draw_rectangle(self, frame, width=640, height=300):
+        # Vẽ đường viền khung hình chữ nhật
+        start_point = (0, 100)  # Tọa độ góc trên bên trái
+        end_point = (start_point[0] + width, start_point[1] + height)  # Tọa độ góc dưới bên phải
+        color = (0, 255, 0)  # Màu xanh lá
+        thickness = 2  # Độ dày đường viền
+        cv2.rectangle(frame, start_point, end_point, color, thickness)
+        # Vẽ trục tọa độ
+        self.draw_axes(frame, start_point, width, height)
+    
+    def draw_axes(self, frame, start_point, width, height):
+        # Tọa độ của trục
+        origin_x = start_point[0] + width // 2  # Trục x giữa hình chữ nhật
+        origin_y = start_point[1] + height - 0  # Trục y cách đáy khung hình chữ nhật 100 pixel
+        # Vẽ trục x
+        cv2.line(frame, (0, origin_y), (frame.shape[1], origin_y), (255, 0, 0), 2)  # Màu đỏ
+        cv2.putText(frame, 'X', (frame.shape[1] - 20, origin_y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        # Vẽ trục y
+        cv2.line(frame, (origin_x, 0), (origin_x, frame.shape[0]), (255, 0, 0), 2)  # Màu đỏ
+        cv2.putText(frame, 'Y', (origin_x + 5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        # Vẽ điểm A tại gốc tọa độ
+        self.draw_point_A(frame, origin_x, origin_y)
+        # Tính toán tọa độ của điểm B (cách điểm A 300 pixel theo trục Y)
+        point_B_y = origin_y - 300  # Cách điểm A 300 pixel lên trên
+        # Vẽ điểm B
+        self.draw_point_B(frame, origin_x, point_B_y)
+        # Vẽ 10 điểm giữa A và B
+        self.draw_intermediate_points(frame, origin_x, origin_y, origin_x, point_B_y)
+    
+    def draw_point_A(self, frame, x, y):
+        # Vẽ điểm A
+        radius = 5  # Bán kính của điểm
+        color = (0, 0, 255)  # Màu đỏ
+        thickness = -1  # Để vẽ hình tròn đầy
+        cv2.circle(frame, (x, y), radius, color, thickness)  # Vẽ hình tròn tại tọa độ (x, y)
+        cv2.putText(frame, 'A', (x + 10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)  # Nhãn A
+    
+    def draw_point_B(self, frame, x, y):
+        # Vẽ điểm B
+        radius = 5  # Bán kính của điểm
+        color = (255, 0, 0)  # Màu xanh dương
+        thickness = -1  # Để vẽ hình tròn đầy
+        cv2.circle(frame, (x, y), radius, color, thickness)  # Vẽ hình tròn tại tọa độ (x, y)
+        cv2.putText(frame, 'B', (x + 10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)  # Nhãn B
+    
+    def draw_intermediate_points(self, frame, x_A, y_A, x_B, y_B):
+        # Tính toán khoảng cách giữa các điểm
+        num_points = 10  # Chỉ hiển thị 10 điểm ảnh
+        interval = (y_A - y_B) / (num_points + 1)  # Khoảng cách giữa các điểm
+        for i in range(1, num_points + 1):
+            # Tính toán tọa độ y cho từng điểm
+            y_point = int(y_A - i * interval)
+            self.line_points.append((x_A, y_point))  # Lưu tọa độ điểm vào danh sách
+            self.draw_point_intermediate(frame, x_A, y_point)
+    
+    def draw_point_intermediate(self, frame, x, y):
+        # Vẽ điểm trung gian
+        radius = 3  # Bán kính của điểm trung gian
+        color = (0, 0, 255)  # Màu đỏ
+        thickness = -1  # Để vẽ hình tròn đầy
+        cv2.circle(frame, (x, y), radius, color, thickness)  # Vẽ hình tròn tại tọa độ (x, y)
+    
+    def find_yellow(self, frame):
+        
+        # Chuyển đổi khung hình sang không gian màu HSV
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        
+        # Định nghĩa khoảng màu vàng trong không gian HSV
+        lower_yellow = np.array([18, 90, 90])
+        upper_yellow = np.array([35, 255, 255])
+        
+        # Tạo mặt nạ cho màu vàng
+        mask = cv2.inRange(hsv_frame, lower_yellow, upper_yellow)
+        
+        # Áp dụng phép mở (morphological opening) để loại bỏ nhiễu
+        kernel = np.ones((5, 5), np.uint8)
+        mask_open = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+       
+        # Áp dụng phép đóng (morphological closing) để lấp đầy các lỗ nhỏ
+        mask_close = cv2.morphologyEx(mask_open, cv2.MORPH_CLOSE, kernel)
+        
+        # Áp dụng mặt nạ vào khung hình gốc
+        yellow_objects = cv2.bitwise_and(frame, frame, mask=mask_close)
+
+        return yellow_objects, mask_close, hsv_frame, mask
+    
+    def adjust_brightness(self, frame, brightness=50):
+    # """
+    # Điều chỉnh độ sáng của khung hình.
+    # :param frame: Khung hình gốc
+    # :param brightness: Độ sáng muốn tăng thêm, mặc định là 50
+    # :return: Khung hình với độ sáng được điều chỉnh
+    # """
+    # Chuyển đổi khung hình sang định dạng có thể xử lý với độ sáng
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    
+        # Tách các kênh màu HSV
+        h, s, v = cv2.split(hsv)
+    
+        # Thêm giá trị brightness vào kênh V (Value - độ sáng)
+        v = cv2.add(v, brightness)
+    
+        # Gộp lại các kênh màu
+        final_hsv = cv2.merge((h, s, v))
+    
+        # Chuyển lại về không gian màu BGR
+        bright_frame = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    
+        return bright_frame, hsv
+    def apply_canny_edge_detection(self, mask):
+        """
+        Áp dụng Canny Edge Detection lên mặt nạ của vùng màu vàng sau khi làm sạch nhiễu.
+        """
+        # Làm mờ ảnh bằng bộ lọc Gaussian để giảm nhiễu trước khi áp dụng Canny
+        blurred_mask = cv2.GaussianBlur(mask, (5, 5), 0)
+
+        # Áp dụng Canny Edge Detection với ngưỡng được điều chỉnh để tìm đường biên
+        edges = cv2.Canny(blurred_mask, 240, 255)  # Ngưỡng dưới là 50, ngưỡng trên là 150
+        return edges
+   
+    def find_and_draw_contours_binary(self, frame, edges):
+        """
+        Tìm và vẽ đường viền ngoài cùng lên ảnh nhị phân (chỉ hiển thị đường biên ngoài cùng).
+        """
+        # Tìm các contours từ kết quả Canny Edge
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Chỉ giữ lại các contour có diện tích lớn hơn 100 pixel
+        contours = [cnt for cnt in contours if cv2.contourArea(cnt) < 100]
+
+        # Tạo một ảnh đen (nhị phân) với cùng kích thước
+        binary_image = np.zeros_like(edges)
+
+        # Vẽ các contour ngoài cùng lên ảnh nhị phân (màu trắng)
+        cv2.drawContours(binary_image, contours, -1, (255), 2)  # Màu trắng (255) cho contour
+
+        # Tùy chọn: Làm sáng khung hình gốc nếu muốn
+        frame_bright = cv2.convertScaleAbs(frame, alpha=1.2, beta=50)  # Điều chỉnh độ sáng nếu cần
+
+        # Vẽ contour lên khung hình gốc để hiển thị rõ
+        cv2.drawContours(frame_bright, contours, -1, (0, 255, 0), 2)  # Vẽ contour màu xanh lá lên khung hình gốc
+
+        return binary_image, frame_bright
+
+    def draw_perpendicular_line(self, frame, intersect_index):
+        if intersect_index < 0 or intersect_index >= len(self.line_points):
+            print("Index out of bounds for line points.")
+            return
+
+        cx, cy = self.line_points[intersect_index]
+        cv2.line(frame, (0, cy), (frame.shape[1], cy), (255, 0, 255), 2)
+        cv2.circle(frame, (cx, cy), 5, (0, 0, 0), -1)
+#    def find_intersections(self, mask, frame):
+#         for i, (cx, cy) in enumerate(self.line_points):
+#             column_values = mask[:, cx]  # Lấy các giá trị pixel của cột tương ứng với đường thẳng dọc
+#             yellow_pixels = np.where(column_values > 0)[0]  # Tìm các pixel có màu vàng
+
+#             if len(yellow_pixels) > 0:
+#                 intersection_y = yellow_pixels[0]  # Chọn điểm giao đầu tiên
+#                 self.draw_intersection_point(frame, cx, intersection_y)
+
+#     def draw_intersection_point(self, frame, x, y):
+#         radius = 5
+#         color = (0, 0, 255)
+#         thickness = -1
+#         cv2.circle(frame, (x, y), radius, color, thickness)
+#         cv2.putText(frame, 'Intersection', (x + 10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+    def find_intersections(self, mask, frame):
+    # Tìm các contour từ mặt nạ
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Lặp qua các contour để tìm giao điểm
+        for contour in contours:
+        # Chỉ lấy những contour lớn hơn 100 pixel
+            if cv2.contourArea(contour) < 100:
+                continue
+        
+        # Tạo một đường thẳng dọc từ 10 điểm trên trục Oy
+        for i in range(1, 11):  # Giả sử bạn có 10 đường thẳng
+            x_line = int(frame.shape[0] / 11 * i)  # Tính toán tọa độ y
+            y = contour[0][0][0]  # Lấy x từ contour
+
+            # Tạo một đường thẳng dọc
+            cv2.line(frame, (x_line, y), (x_line + 20, y), (255, 0, 0), 2)  # Vẽ đường thẳng
+
+            # Kiểm tra giao điểm với contour
+            if cv2.pointPolygonTest(contour, (x_line, y), False) >= 0:
+                # Nếu có giao điểm, vẽ dấu tại vị trí giao điểm
+                cv2.circle(frame, (x_line, y), 5, (0, 255, 0), -1)  # Vẽ dấu giao điểm
+
+
+    def draw_intersection_point(self, frame, x, y):
+            radius = 5
+            color = (0, 0, 255)
+            thickness = -1
+            cv2.circle(frame, (x, y), radius, color, thickness)
+            cv2.putText(frame, f"({x},{y})", (x + 10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+    def mark_intersections(self, frame, mask):
+        # Tìm các giao điểm và đánh dấu chúng trong khung hình gốc
+        self.find_intersections(mask, frame)        
+
+    def run(self):
+        while True:
+            # Đọc một khung hình từ camera
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Không thể đọc khung hình")
+                break
+            
+            # Lấy kích thước khung hình
+            width, height = self.get_frame_size(frame)
+            print(f"Kích thước khung hình: {width}x{height} pixels")
+            for i in range(len(self.line_points)):
+                self.draw_perpendicular_line(frame, i)
+            
+            # self.find_intersections(yellow_mask, frame)
+
+            # Vẽ đường viền khung hình chữ nhật
+            self.draw_rectangle(frame)
+            
+            # # Vẽ đường thằng đi qua điểm
+            # self.draw_perpendicular_lines(frame)
+
+            # Tìm các đối tượng màu vàng
+            yellow_objects = self.find_yellow(frame)
+            
+            # Xử lý khung hình
+            gray_frame = self.process_frame(frame)
+            
+            # Tăng cường độ sáng cho khung hình
+            bright_frame, hsv = self.adjust_brightness(frame, brightness=50)
+
+            # Xử lý khung hình để phát hiện đường màu vàng và hệ màu HSV
+            yellow_objects, hsv_frame, yellow_mask, mask_close = self.find_yellow(bright_frame)
+
+            self.mark_intersections(frame, mask_close)  # Đánh dấu giao điểm trên khung hình gốc
+
+            self.find_intersections(frame, mask_close)
+            # self.find_intersections(mask, frame)
+
+            # Áp dụng Canny Edge Detection để phát hiện biên của đường màu vàng
+            edges = self.apply_canny_edge_detection(yellow_mask)
+
+            # Tìm và vẽ đường viền ngoài cùng
+            contour_frame, binary_image = self.find_and_draw_contours_binary(bright_frame, edges)
+            
+            # Hiển thị khung hình gốc
+            cv2.imshow('Khung hình gốc', frame)
+           
+            # Hiển thị khung hình ảnh xám
+            cv2.imshow('Khung hình xám', gray_frame)
+            
+            # Hiển thị khung hình màu vàng
+            # cv2.imshow('Khung hình màu vàng', yellow_objects)
+            
+            # Hiển thị khung hình phát hiện đường màu vàng
+            cv2.imshow('Phát hiện đường màu vàng', yellow_objects)
+            
+            # Hiển thị khung hình đã cải thiện độ sáng
+            cv2.imshow('Khung hình cải thiện độ sáng', bright_frame)
+
+            # Hiển thị khung hình biên của đường màu vàng (Canny)
+            cv2.imshow('Biên của đường màu vàng (Canny)', edges)
+
+            # Hiển thị khung hình gốc sau khi đã điều chỉnh độ sáng và phát hiện đường viền ngoài cùng
+            cv2.imshow('contour', contour_frame)
+
+            cv2.imshow('hsv_frame', hsv_frame)
+            cv2.imshow('hsv', hsv)
+
+            cv2.imshow('Binary Contours', binary_image)
+            # Thoát khi nhấn phím 'q'
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    def release(self):
+        # Giải phóng camera và đóng tất cả cửa sổ
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    video_processor = VideoProcessor()  # Tạo đối tượng VideoProcessor
+    video_processor.run()                # Bắt đầu xử lý video
+    video_processor.release()             # Giải phóng tài nguyên
